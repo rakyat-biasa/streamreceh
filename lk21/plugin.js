@@ -243,19 +243,19 @@
                 return;
             }
 
-            // The visible search page loads its results asynchronously from this JSON endpoint.
-            const page = await requestPage(BASE() + "/search?s=" + encodeURIComponent(searchTerm));
-            const bodyTag = page.html.match(/<body\b[^>]*>/i);
-            const searchBase = attr(bodyTag && bodyTag[0], "data-search_url") || "https://gudangvape.com/";
-            const endpoint = new URL("search.php", searchBase.endsWith("/") ? searchBase : searchBase + "/");
+            // LK21's search page only loads results through this JSON service.
+            // Call it directly so a transient failure of the HTML shell does not
+            // prevent a search when the API itself is still reachable.
+            const searchPageUrl = BASE() + "/search?s=" + encodeURIComponent(searchTerm);
+            const endpoint = new URL("search.php", "https://gudangvape.com/");
             endpoint.searchParams.set("s", searchTerm);
             endpoint.searchParams.set("page", "1");
 
-            const searchPage = new URL(page.url);
+            const searchPage = new URL(searchPageUrl);
             const searchHeaders = {
                 Accept: "application/json, text/javascript, */*; q=0.01",
                 Origin: searchPage.origin,
-                Referer: page.url
+                Referer: searchPageUrl
             };
             let response;
             let status = 0;
