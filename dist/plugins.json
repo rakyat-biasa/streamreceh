@@ -1,0 +1,21 @@
+[
+  {
+    "packageName": "dev.erul.skystream.lk21",
+    "name": "LK21",
+    "version": 1,
+    "baseUrl": "https://tv12.lk21official.cc",
+    "description": "Katalog film dan series LK21",
+    "authors": [
+      "Erul"
+    ],
+    "languages": [
+      "id",
+      "en"
+    ],
+    "categories": [
+      "Movies",
+      "Series"
+    ],
+    "url": "https://raw.githubusercontent.com/rakyat-biasa/streamreceh/main/dist/dev.erul.skystream.lk21.sky"
+  }
+]
