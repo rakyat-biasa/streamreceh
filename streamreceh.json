@@ -4,6 +4,6 @@
   "description": "SkyStream plugins repository",
   "manifestVersion": 1,
   "pluginLists": [
-    "https://raw.githubusercontent.com/rakyat-biasa/streamreceh/ff5017f28a77c9167bcd79f96d78e455d49ac957/dist/plugins.json"
+    "https://raw.githubusercontent.com/rakyat-biasa/streamreceh/529d77fac41dc04bbafe3a397bdd3063898a0ddd/dist/plugins.json"
   ]
 }
