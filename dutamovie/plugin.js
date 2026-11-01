@@ -237,7 +237,6 @@
             || attr(posterTag && posterTag[0], "src"), pageUrl);
         const descriptionBlock = html.match(/<div\b[^>]*class=["'][^"']*entry-content-single[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
         const description = textOf(descriptionBlock && descriptionBlock[1]) || metaContent(html, "description") || metaContent(html, "og:description");
-        const type = itemType(pageUrl, html);
         const list = html.match(/<div\b[^>]*class=["'][^"']*gmr-listseries[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
         const linkTags = list ? (list[1].match(/<a\b[^>]*>[\s\S]*?<\/a>/gi) || []) : [];
         const episodes = [];
@@ -249,24 +248,29 @@
             episodes.push(episode);
         }
         episodes.sort((a, b) => a.season - b.season || a.episode - b.episode);
+        const type = episodes.length ? "series" : itemType(pageUrl, html);
+        // SkyStream enables the detail-page Play button from a non-empty
+        // episodes list, then calls loadStreams with the selected episode URL.
+        // Movies have no episode list, so point one playable entry at the movie page.
+        const playableEpisodes = episodes.length ? episodes : [new Episode({
+            name: title,
+            url: pageUrl,
+            season: 1,
+            episode: 1,
+            headers: REFERER_HEADERS()
+        })];
         const yearMatch = title.match(/\b(19|20)\d{2}\b/);
         const item = new MultimediaItem({
             title,
             url: pageUrl,
             posterUrl: posterUrl || "",
-            type: episodes.length ? "series" : type,
+            type,
             year: yearMatch ? Number(yearMatch[0]) : undefined,
             score: scoreFrom(html),
             description: description || undefined,
             tags: [],
             headers: REFERER_HEADERS(),
-            episodes: episodes.length ? episodes : type === "series" ? [new Episode({
-                name: title,
-                url: pageUrl,
-                season: 1,
-                episode: 1,
-                headers: REFERER_HEADERS()
-            })] : undefined
+            episodes: playableEpisodes
         });
         return item;
     }
