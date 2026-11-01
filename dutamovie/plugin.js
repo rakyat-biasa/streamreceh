@@ -1,5 +1,3 @@
-import { Voe } from "skystream-extractors";
-
 (function () {
     const BASE = () => String(manifest.baseUrl || "https://revertsite.com").replace(/\/$/, "");
     const REFERER_HEADERS = () => ({ Referer: BASE() + "/" });
@@ -322,6 +320,17 @@ import { Voe } from "skystream-extractors";
         return (region.match(/<iframe\b[^>]*>/gi) || []).map(tag => absoluteUrl(attr(tag, "src"), pageUrl)).filter(Boolean);
     }
 
+    async function resolveVoeStreams(embedUrl) {
+        const response = await http_get(embedUrl);
+        const status = Number(response && (response.status || response.statusCode));
+        if (!response || status < 200 || status >= 400) return [];
+        const html = responseBody(response);
+        const match = html.match(/'hls'\s*:\s*'([^']+)'/i) || html.match(/"hls"\s*:\s*"([^"]+)"/i);
+        if (!match) return [];
+        const url = absoluteUrl(match[1].replace(/\\\//g, "/"), embedUrl);
+        return url ? [{ url, source: "Voe", headers: { Referer: new URL(embedUrl).origin + "/" } }] : [];
+    }
+
     function responseJson(response) {
         const body = response && response.body;
         if (body && typeof body === "object") return body;
@@ -619,7 +628,6 @@ import { Voe } from "skystream-extractors";
             const page = await requestPage(url);
             const candidates = streamCandidates(page.html, page.url);
             const seen = new Set(candidates.map(candidate => candidate.url));
-            const voe = new Voe();
 
             // The active server is not always directly playable. Try the site's alternate
             // player tabs and resolve Voe embeds into their HLS URL.
@@ -655,7 +663,7 @@ import { Voe } from "skystream-extractors";
                     }
                     if (/\bvoe\.(?:sx|to)\//i.test(embedUrl)) {
                         try {
-                            const links = await voe.getUrl(embedUrl, playerPage.url);
+                            const links = await resolveVoeStreams(embedUrl);
                             for (const link of links || []) {
                                 if (!link.url || seen.has(link.url)) continue;
                                 seen.add(link.url);
