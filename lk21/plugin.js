@@ -279,11 +279,13 @@
                     ? absoluteUrl(entry.poster, "https://poster.assetsy.de/wp-content/uploads/")
                     : "https://assets.assetsy.de/images/logo-layarkaca21.jpg";
                 const type = String(entry.type || "").toLowerCase();
+                const contentType = type === "series" ? "series" : type === "anime" ? "anime" : "movie";
                 return new MultimediaItem({
                     title: textOf(entry.title),
                     url: BASE() + "/" + slug,
                     posterUrl: poster,
-                    type: type === "series" ? "series" : type === "anime" ? "anime" : "movie",
+                    type: contentType,
+                    contentType,
                     year: Number(entry.year) || undefined,
                     score: Number(entry.rating) || undefined,
                     headers: REFERER_HEADERS()
