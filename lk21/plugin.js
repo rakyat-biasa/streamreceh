@@ -286,6 +286,50 @@
         return value;
     }
 
+    function md5Bytes(value) {
+        const bytes = toBytes(value);
+        const bitLength = bytes.length * 8;
+        bytes.push(0x80);
+        while (bytes.length % 64 !== 56) bytes.push(0);
+        for (let i = 0; i < 4; i++) bytes.push((bitLength >>> (i * 8)) & 255);
+        const highBits = Math.floor(bitLength / 0x100000000);
+        for (let i = 0; i < 4; i++) bytes.push((highBits >>> (i * 8)) & 255);
+
+        const shifts = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+        const constants = new Array(64);
+        for (let i = 0; i < 64; i++) constants[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 0x100000000) >>> 0;
+        const state = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476];
+        const rotateLeft = (value, count) => (value << count) | (value >>> (32 - count));
+
+        for (let offset = 0; offset < bytes.length; offset += 64) {
+            const words = new Array(16);
+            for (let i = 0; i < 16; i++) {
+                const p = offset + i * 4;
+                words[i] = (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0;
+            }
+            let a = state[0], b = state[1], c = state[2], d = state[3];
+            for (let i = 0; i < 64; i++) {
+                let f, g, shift;
+                if (i < 16) { f = (b & c) | (~b & d); g = i; shift = shifts[i % 4]; }
+                else if (i < 32) { f = (d & b) | (~d & c); g = (5 * i + 1) % 16; shift = shifts[4 + (i % 4)]; }
+                else if (i < 48) { f = b ^ c ^ d; g = (3 * i + 5) % 16; shift = shifts[8 + (i % 4)]; }
+                else { f = c ^ (b | ~d); g = (7 * i) % 16; shift = shifts[12 + (i % 4)]; }
+                const sum = (a + f + constants[i] + words[g]) >>> 0;
+                const rotated = rotateLeft(sum, shift) >>> 0;
+                const nextB = (b + rotated) >>> 0;
+                a = d; d = c; c = b; b = nextB;
+            }
+            state[0] = (state[0] + a) >>> 0;
+            state[1] = (state[1] + b) >>> 0;
+            state[2] = (state[2] + c) >>> 0;
+            state[3] = (state[3] + d) >>> 0;
+        }
+
+        let hex = "";
+        for (const word of state) for (let i = 0; i < 4; i++) hex += ((word >>> (i * 8)) & 255).toString(16).padStart(2, "0");
+        return hex;
+    }
+
     function aesSbox() {
         const box = new Array(256);
         const mul = (a, b) => {
@@ -362,7 +406,7 @@
         const digits = String(number);
         let bytes = "";
         for (let i = 0; i < digits.length; i++) bytes += String.fromCharCode(Number(digits.charAt(i)));
-        return crypto.md5(bytes);
+        return md5Bytes(bytes);
     }
 
     function encodeBase64Binary(value) {
@@ -386,7 +430,7 @@
         const dataMatch = html.match(/\bconst\s+datas\s*=\s*["']([A-Za-z0-9+/=]+)["']/);
         if (!dataMatch) return [];
         const packed = JSON.parse(atob(dataMatch[1]));
-        const digest = crypto.md5(String(packed.user_id) + ":" + String(packed.slug || packed.v) + ":" + String(packed.md5_id));
+        const digest = md5Bytes(String(packed.user_id) + ":" + String(packed.slug || packed.v) + ":" + String(packed.md5_id));
         const decrypted = aesCtr(String(packed.media || ""), digest, digest.slice(0, 16));
         const media = JSON.parse(decrypted);
         const mp4 = media && media.mp4;
