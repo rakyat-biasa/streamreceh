@@ -1,0 +1,9 @@
+{
+  "name": "skystream-plugins",
+  "packageName": "dev.erul.skystream",
+  "description": "SkyStream plugins repository",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/rakyat-biasa/streamreceh/main/dist/plugins.json"
+  ]
+}
