@@ -4,6 +4,6 @@
   "description": "SkyStream plugins repository",
   "manifestVersion": 1,
   "pluginLists": [
-    "https://raw.githubusercontent.com/rakyat-biasa/streamreceh/fix/lk21-movie-play/dist/plugins.json"
+    "https://raw.githubusercontent.com/rakyat-biasa/streamreceh/main/dist/plugins.json"
   ]
 }
