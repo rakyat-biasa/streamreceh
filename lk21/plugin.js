@@ -166,6 +166,17 @@
             }
         }
         const type = episodeLinks.length || /data-web_type=["']series/i.test(html) || /\/season-\d+-episode-\d+/i.test(pageUrl) ? "series" : "movie";
+        // SkyStream enables the detail-page Play button from a non-empty
+        // episodes list, then asks loadStreams for that episode URL. A movie
+        // has no real episode list, so use its own page URL as the playable
+        // target while keeping the item type as "movie".
+        const playableEpisodes = type === "movie" ? [new Episode({
+            name: title,
+            url: pageUrl,
+            season: 1,
+            episode: 1,
+            headers: REFERER_HEADERS()
+        })] : episodeLinks;
         const genres = [];
         const tagList = html.match(/<div\b[^>]*class=["'][^"']*tag-list[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
         if (tagList) {
@@ -183,7 +194,7 @@
             status: type === "series" ? (/ongoing/i.test(html) ? "ongoing" : "completed") : undefined,
             tags: genres,
             headers: REFERER_HEADERS(),
-            episodes: episodeLinks
+            episodes: playableEpisodes
         });
         return item;
     }
@@ -222,7 +233,7 @@
             if (!response || status < 200 || status >= 400) {
                 throw new Error("LK21 search mengembalikan HTTP " + (status || "tidak diketahui"));
             }
-            const result = JSON.parse(String(response.body || "{}"));
+            const result = responseJson(response);
             const items = Array.isArray(result.data) ? result.data : [];
             const data = items.map((entry) => {
                 const slug = String(entry.slug || "").replace(/^\/+|\/+$/g, "");
