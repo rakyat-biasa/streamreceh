@@ -54,8 +54,13 @@
     }
 
     async function requestPage(url, redirectDepth) {
-        const response = await http_get(url, REFERER_HEADERS());
-        const status = Number(response && (response.status || response.statusCode));
+        let response;
+        let status = 0;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            response = await http_get(url, REFERER_HEADERS());
+            status = Number(response && (response.status || response.statusCode));
+            if (status < 500 || status >= 600 || attempt === 2) break;
+        }
         if (!response || status < 200 || status >= 400) {
             throw new Error("LK21 mengembalikan HTTP " + (status || "tidak diketahui"));
         }
@@ -247,12 +252,18 @@
             endpoint.searchParams.set("page", "1");
 
             const searchPage = new URL(page.url);
-            const response = await http_get(endpoint.href, {
+            const searchHeaders = {
                 Accept: "application/json, text/javascript, */*; q=0.01",
                 Origin: searchPage.origin,
                 Referer: page.url
-            });
-            const status = Number(response && (response.status || response.statusCode));
+            };
+            let response;
+            let status = 0;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                response = await http_get(endpoint.href, searchHeaders);
+                status = Number(response && (response.status || response.statusCode));
+                if (status < 500 || status >= 600 || attempt === 2) break;
+            }
             if (!response || status < 200 || status >= 400) {
                 throw new Error("LK21 search mengembalikan HTTP " + (status || "tidak diketahui"));
             }
