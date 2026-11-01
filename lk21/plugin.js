@@ -256,6 +256,56 @@
         }
     }
 
+    function responseJson(response) {
+        const body = response && response.body;
+        if (body && typeof body === "object") return body;
+        try { return JSON.parse(String(body || "{}")); }
+        catch (_) { return {}; }
+    }
+
+    async function resolveStreamUrl(embedUrl) {
+        let current;
+        try { current = new URL(embedUrl); }
+        catch (_) { return null; }
+
+        if (/^(?:www\.)?videonode\.de$/i.test(current.hostname) && /^\/iframe3\//i.test(current.pathname)) {
+            const parts = current.pathname.split("/").filter(Boolean);
+            if (parts.length < 3) return null;
+            const host = parts[1];
+            const id = parts.slice(2).join("/");
+            const apiUrl = current.origin + "/api.php";
+            const response = await http_post(apiUrl, {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Origin: current.origin,
+                Referer: current.href
+            }, "host=" + encodeURIComponent(host) + "&id=" + encodeURIComponent(id));
+            const status = Number(response && (response.status || response.statusCode));
+            if (!response || status < 200 || status >= 400) return null;
+            const payload = responseJson(response);
+            if (!payload.embedUrl) return null;
+            try { current = new URL(payload.embedUrl, current.href); }
+            catch (_) { return null; }
+        }
+
+        if (/^(?:www\.)?playcdn\.de$/i.test(current.hostname)) {
+            const slug = current.pathname.split("/").filter(Boolean).pop();
+            if (!slug) return null;
+            const verifyUrl = current.origin + "/verify/" + encodeURIComponent(slug);
+            const response = await http_get(verifyUrl, { Referer: current.href, Origin: current.origin });
+            const status = Number(response && (response.status || response.statusCode));
+            if (!response || status < 200 || status >= 400) return null;
+            const payload = responseJson(response);
+            const mediaUrl = String(payload.fileUrl || "");
+            if (!/^https?:\/\//i.test(mediaUrl) || !/\.(?:m3u8|mp4|mpd)(?:$|\?)/i.test(mediaUrl)) return null;
+            return { url: mediaUrl, referer: current.href, title: payload.title || "" };
+        }
+
+        if (/\.(?:m3u8|mp4|mpd)(?:$|\?)/i.test(current.href)) {
+            return { url: current.href, referer: current.origin + "/" };
+        }
+        return null;
+    }
+
     async function loadStreams(url, cb) {
         try {
             const page = await requestPage(url);
@@ -263,17 +313,27 @@
             const seen = new Set();
             const player = page.html.match(/<iframe\b[^>]*\bid=["']main-player["'][^>]*>/i);
             const primary = player && absoluteUrl(attr(player[0], "src"), page.url);
-            if (primary) {
-                seen.add(primary);
-                results.push(new StreamResult({ url: primary, source: "Player utama", headers: { Referer: page.url } }));
-            }
+            const candidates = [];
+            if (primary) candidates.push({ url: primary, source: "Player utama" });
             const servers = page.html.match(/<[^>]+\bdata-url=["'][^"']+["'][^>]*>/gi) || [];
             for (const server of servers) {
                 const embed = absoluteUrl(attr(server, "data-url"), page.url);
-                if (!embed || seen.has(embed)) continue;
-                const name = attr(server, "data-server") || "Server " + (results.length + 1);
-                seen.add(embed);
-                results.push(new StreamResult({ url: embed, source: name, headers: { Referer: page.url } }));
+                if (!embed || candidates.some(candidate => candidate.url === embed)) continue;
+                candidates.push({ url: embed, source: attr(server, "data-server") || "Server " + (candidates.length + 1) });
+            }
+            for (const candidate of candidates) {
+                try {
+                    const stream = await resolveStreamUrl(candidate.url);
+                    if (!stream || seen.has(stream.url)) continue;
+                    seen.add(stream.url);
+                    const quality = /\.m3u8(?:$|\?)/i.test(stream.url) ? "Auto" : undefined;
+                    results.push(new StreamResult({
+                        url: stream.url,
+                        source: candidate.source + (stream.title ? " - " + stream.title : ""),
+                        quality,
+                        headers: { Referer: stream.referer || page.url }
+                    }));
+                } catch (_) { }
             }
             cb({ success: true, data: results });
         } catch (e) {
