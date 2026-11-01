@@ -284,16 +284,14 @@
                     title: textOf(entry.title),
                     url: BASE() + "/" + slug,
                     posterUrl: poster,
-                    type: contentType,
-                    contentType,
                     year: Number(entry.year) || undefined,
-                    score: Number(entry.rating) || undefined,
-                    headers: REFERER_HEADERS()
+                    type: contentType,
+                    contentType
                 });
             }).filter(Boolean);
             cb({ success: true, data });
         } catch (e) {
-            cb({ success: false, errorCode: "SEARCH_ERROR", message: String(e) });
+            cb({ success: false, error: e && e.message ? e.message : String(e) });
         }
     }
 
