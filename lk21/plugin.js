@@ -45,8 +45,10 @@
         if (!resolved) return "";
         try {
             const parsed = new URL(resolved);
-            if (/\/nontondrama\/?$/i.test(parsed.pathname) && parsed.searchParams.has("page")) {
-                const slug = parsed.searchParams.get("page");
+            const pageMatch = parsed.search.match(/[?&]page=([^&]*)/i);
+            if (/\/nontondrama\/?$/i.test(parsed.pathname) && pageMatch) {
+                let slug = pageMatch[1];
+                try { slug = decodeURIComponent(slug.replace(/\+/g, " ")); } catch (_) { }
                 if (slug && !slug.includes("/")) return BASE() + "/" + encodeURIComponent(slug);
             }
             return resolved;
@@ -247,9 +249,7 @@
             // Call it directly so a transient failure of the HTML shell does not
             // prevent a search when the API itself is still reachable.
             const searchPageUrl = BASE() + "/search?s=" + encodeURIComponent(searchTerm);
-            const endpoint = new URL("search.php", "https://gudangvape.com/");
-            endpoint.searchParams.set("s", searchTerm);
-            endpoint.searchParams.set("page", "1");
+            const endpoint = "https://gudangvape.com/search.php?s=" + encodeURIComponent(searchTerm) + "&page=1";
 
             const searchPage = new URL(searchPageUrl);
             const searchHeaders = {
@@ -260,7 +260,7 @@
             let response;
             let status = 0;
             for (let attempt = 0; attempt < 3; attempt++) {
-                response = await http_get(endpoint.href, searchHeaders);
+                response = await http_get(endpoint, searchHeaders);
                 status = Number(response && (response.status || response.statusCode));
                 if (status < 500 || status >= 600 || attempt === 2) break;
             }
