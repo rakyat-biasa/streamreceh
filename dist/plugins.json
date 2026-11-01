@@ -1,6 +1,6 @@
 [
   {
-    "packageName": "dev.erul.skystream.lk21",
+    "packageName": "dev.rakyatbiasa.skystream.lk21",
     "name": "LK21",
     "version": 2,
     "baseUrl": "https://tv12.lk21official.cc",
@@ -16,6 +16,6 @@
       "Movies",
       "Series"
     ],
-    "url": "https://raw.githubusercontent.com/rakyat-biasa/streamreceh/main/dist/dev.erul.skystream.lk21.sky"
+    "url": "https://raw.githubusercontent.com/rakyat-biasa/streamreceh/main/dist/dev.rakyatbiasa.skystream.lk21.sky"
   }
 ]
