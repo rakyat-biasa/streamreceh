@@ -1,5 +1,23 @@
 [
   {
+    "packageName": "dev.rakyatbiasa.skystream.dutamovie",
+    "name": "Dutamovie21",
+    "version": 2,
+    "baseUrl": "https://revertsite.com",
+    "description": "Katalog film dan serial Dutamovie21",
+    "authors": [
+      "Erul"
+    ],
+    "languages": [
+      "id"
+    ],
+    "categories": [
+      "Movies",
+      "Series"
+    ],
+    "url": "https://raw.githubusercontent.com/rakyat-biasa/streamreceh/main/dist/dev.rakyatbiasa.skystream.dutamovie.sky"
+  },
+  {
     "packageName": "dev.rakyatbiasa.skystream.lk21",
     "name": "LK21",
     "version": 13,
