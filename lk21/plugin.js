@@ -228,13 +228,21 @@
             endpoint.searchParams.set("s", searchTerm);
             endpoint.searchParams.set("page", "1");
 
-            const response = await http_get(endpoint.href, REFERER_HEADERS());
+            const searchPage = new URL(page.url);
+            const response = await http_get(endpoint.href, {
+                Accept: "application/json, text/javascript, */*; q=0.01",
+                Origin: searchPage.origin,
+                Referer: page.url
+            });
             const status = Number(response && (response.status || response.statusCode));
             if (!response || status < 200 || status >= 400) {
                 throw new Error("LK21 search mengembalikan HTTP " + (status || "tidak diketahui"));
             }
             const result = responseJson(response);
-            const items = Array.isArray(result.data) ? result.data : [];
+            const items = Array.isArray(result.data) ? result.data : Array.isArray(result.items) ? result.items : [];
+            if (!items.length && (result.error || result.status === "error")) {
+                throw new Error(String(result.error || result.message || "LK21 gagal memproses pencarian"));
+            }
             const data = items.map((entry) => {
                 const slug = String(entry.slug || "").replace(/^\/+|\/+$/g, "");
                 if (!slug || !entry.title) return null;
