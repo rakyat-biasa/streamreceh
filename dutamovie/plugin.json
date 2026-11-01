@@ -1,0 +1,17 @@
+{
+  "packageName": "dev.rakyatbiasa.skystream.dutamovie",
+  "name": "Dutamovie21",
+  "version": 2,
+  "baseUrl": "https://revertsite.com",
+  "description": "Katalog film dan serial Dutamovie21",
+  "authors": [
+    "Erul"
+  ],
+  "languages": [
+    "id"
+  ],
+  "categories": [
+    "Movies",
+    "Series"
+  ]
+}
