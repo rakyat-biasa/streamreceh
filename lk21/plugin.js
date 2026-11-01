@@ -421,6 +421,14 @@
         return btoa(value);
     }
 
+    function formatSourceName(provider, quality) {
+        const label = String(quality || "").trim();
+        const resolution = label.match(/\b(\d{3,4})p\b/i);
+        const pixels = resolution ? Number(resolution[1]) : 0;
+        const tier = pixels >= 2160 ? "4K HD" : pixels >= 1080 ? "Full HD" : pixels >= 720 ? "HD" : pixels >= 480 ? "SD" : "";
+        return (tier ? tier + " " : "") + "[" + String(provider || "Stream").trim() + "]" + (label ? " [" + label + "]" : "");
+    }
+
     async function resolveHydraxStreams(embedUrl) {
         let current;
         try { current = new URL(embedUrl); } catch (_) { return []; }
@@ -530,7 +538,7 @@
                             seen.add(stream.url);
                             results.push(new StreamResult({
                                 url: stream.url,
-                                source: "Hydrax",
+                                source: formatSourceName("Hydrax", stream.quality),
                                 quality: stream.quality,
                                 headers: { Referer: stream.referer }
                             }));
@@ -543,7 +551,7 @@
                     const quality = /\.m3u8(?:$|\?)/i.test(stream.url) ? "Auto" : undefined;
                     results.push(new StreamResult({
                         url: stream.url,
-                        source: candidate.source + (stream.title ? " - " + stream.title : ""),
+                        source: formatSourceName(candidate.source, quality) + (stream.title ? " [" + stream.title + "]" : ""),
                         quality,
                         headers: { Referer: stream.referer || page.url }
                     }));
