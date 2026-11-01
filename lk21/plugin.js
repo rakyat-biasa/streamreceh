@@ -274,6 +274,143 @@
         catch (_) { return {}; }
     }
 
+    function toBytes(value) {
+        const bytes = [];
+        for (let i = 0; i < String(value).length; i++) bytes.push(String(value).charCodeAt(i) & 255);
+        return bytes;
+    }
+
+    function fromBytes(bytes) {
+        let value = "";
+        for (let i = 0; i < bytes.length; i++) value += String.fromCharCode(bytes[i]);
+        return value;
+    }
+
+    function aesSbox() {
+        const box = new Array(256);
+        const mul = (a, b) => {
+            let out = 0;
+            while (b) {
+                if (b & 1) out ^= a;
+                a = (a << 1) ^ ((a & 128) ? 0x11b : 0);
+                b >>>= 1;
+            }
+            return out & 255;
+        };
+        const rot = (x, n) => ((x << n) | (x >>> (8 - n))) & 255;
+        for (let i = 0; i < 256; i++) {
+            let inv = 0;
+            if (i) {
+                inv = 1;
+                for (let p = 0; p < 254; p++) inv = mul(inv, i);
+            }
+            box[i] = (inv ^ rot(inv, 1) ^ rot(inv, 2) ^ rot(inv, 3) ^ rot(inv, 4) ^ 0x63) & 255;
+        }
+        return box;
+    }
+
+    function aesCtr(input, keyText, ivText) {
+        const sbox = aesSbox();
+        const key = toBytes(keyText);
+        const nk = key.length / 4;
+        if (nk !== 8) throw new Error("Hydrax AES key tidak valid");
+        const rounds = nk + 6;
+        const expanded = key.slice();
+        const xtime = x => ((x << 1) ^ ((x & 128) ? 0x11b : 0)) & 255;
+        let rcon = 1;
+        while (expanded.length < 16 * (rounds + 1)) {
+            let t = expanded.slice(expanded.length - 4);
+            if (expanded.length % (nk * 4) === 0) {
+                t = [sbox[t[1]] ^ rcon, sbox[t[2]], sbox[t[3]], sbox[t[0]]];
+                rcon = xtime(rcon);
+            } else if (expanded.length % (nk * 4) === 16) {
+                t = t.map(v => sbox[v]);
+            }
+            for (let i = 0; i < 4; i++) expanded.push(expanded[expanded.length - nk * 4] ^ t[i]);
+        }
+        function encryptBlock(block) {
+            const state = block.slice();
+            const addKey = round => { for (let i = 0; i < 16; i++) state[i] ^= expanded[round * 16 + i]; };
+            const subShift = () => {
+                const s = state.map(v => sbox[v]);
+                for (let row = 0; row < 4; row++) for (let col = 0; col < 4; col++) state[row + col * 4] = s[row + ((col + row) % 4) * 4];
+            };
+            const mix = () => {
+                for (let col = 0; col < 4; col++) {
+                    const i = col * 4, a = state[i], b = state[i + 1], c = state[i + 2], d = state[i + 3], all = a ^ b ^ c ^ d;
+                    state[i] ^= all ^ xtime(a ^ b); state[i + 1] ^= all ^ xtime(b ^ c);
+                    state[i + 2] ^= all ^ xtime(c ^ d); state[i + 3] ^= all ^ xtime(d ^ a);
+                }
+            };
+            addKey(0);
+            for (let round = 1; round < rounds; round++) { subShift(); mix(); addKey(round); }
+            subShift(); addKey(rounds);
+            return state;
+        }
+        const counter = toBytes(ivText).slice(0, 16);
+        while (counter.length < 16) counter.push(0);
+        const data = toBytes(input), output = [];
+        for (let offset = 0; offset < data.length; offset += 16) {
+            const mask = encryptBlock(counter);
+            for (let i = 0; i < 16 && offset + i < data.length; i++) output[offset + i] = data[offset + i] ^ mask[i];
+            for (let i = 15; i >= 0; i--) { counter[i] = (counter[i] + 1) & 255; if (counter[i]) break; }
+        }
+        return fromBytes(output);
+    }
+
+    function md5Digits(number) {
+        const digits = String(number);
+        let bytes = "";
+        for (let i = 0; i < digits.length; i++) bytes += String.fromCharCode(Number(digits.charAt(i)));
+        return crypto.md5(bytes);
+    }
+
+    function encodeBase64Binary(value) {
+        return btoa(value);
+    }
+
+    async function resolveHydraxStreams(embedUrl) {
+        let current;
+        try { current = new URL(embedUrl); } catch (_) { return []; }
+        const apiHeaders = { "Content-Type": "application/x-www-form-urlencoded", Origin: new URL(embedUrl).origin, Referer: embedUrl };
+        const pathMatch = current.pathname.match(/^\/iframe3\/([^/]+)\/(.+)$/i);
+        if (!pathMatch) return [];
+        const apiResponse = await http_post(current.origin + "/api.php", apiHeaders, "host=" + encodeURIComponent(pathMatch[1]) + "&id=" + encodeURIComponent(pathMatch[2]));
+        const payload = responseJson(apiResponse);
+        const abyssUrl = String(payload.embedUrl || "");
+        if (!/^https?:\/\/[^/]*abyssplayer\.com\//i.test(abyssUrl)) return [];
+        const abyssResponse = await http_get(abyssUrl, { Referer: embedUrl });
+        const abyssStatus = Number(abyssResponse && (abyssResponse.status || abyssResponse.statusCode));
+        if (!abyssResponse || abyssStatus < 200 || abyssStatus >= 400) return [];
+        const html = String(abyssResponse.body || "");
+        const dataMatch = html.match(/\bconst\s+datas\s*=\s*["']([A-Za-z0-9+/=]+)["']/);
+        if (!dataMatch) return [];
+        const packed = JSON.parse(atob(dataMatch[1]));
+        const digest = crypto.md5(String(packed.user_id) + ":" + String(packed.slug || packed.v) + ":" + String(packed.md5_id));
+        const decrypted = aesCtr(String(packed.media || ""), digest, digest.slice(0, 16));
+        const media = JSON.parse(decrypted);
+        const mp4 = media && media.mp4;
+        const sources = Array.isArray(mp4 && mp4.sources) ? mp4.sources : [];
+        const domains = Array.isArray(mp4 && mp4.domains) ? mp4.domains : [];
+        const md5Id = String(packed.md5_id || "");
+        const slug = String(packed.slug || packed.v || "");
+        const streams = [];
+        for (const source of sources) {
+            if (!source || source.status === false || !source.size || !source.res_id || !source.sub) continue;
+            const domain = domains.find(host => String(host).toLowerCase().startsWith(String(source.sub).toLowerCase())) || String(source.sub) + ".sssrr.org";
+            const plain = "/mp4/" + md5Id + "/" + source.res_id + "/" + source.size + "?v=" + slug;
+            const key = md5Digits(source.size);
+            const encrypted = aesCtr(plain, key, key.slice(0, 16));
+            const token = encodeBase64Binary(encodeBase64Binary(encrypted).replace(/=/g, "")).replace(/=/g, "");
+            streams.push({
+                url: "https://" + domain + "/sora/" + source.size + "/" + token,
+                quality: String(source.label || (Number(source.res_id) * 240) + "p"),
+                referer: "https://abyssplayer.com/"
+            });
+        }
+        return streams;
+    }
+
     async function resolveStreamUrl(embedUrl) {
         let current;
         try { current = new URL(embedUrl); }
@@ -334,6 +471,20 @@
             }
             for (const candidate of candidates) {
                 try {
+                    if (/^(?:www\.)?videonode\.de$/i.test(new URL(candidate.url).hostname) && /\/iframe3\/hydrax\//i.test(new URL(candidate.url).pathname)) {
+                        const hydrax = await resolveHydraxStreams(candidate.url);
+                        for (const stream of hydrax) {
+                            if (!stream.url || seen.has(stream.url)) continue;
+                            seen.add(stream.url);
+                            results.push(new StreamResult({
+                                url: stream.url,
+                                source: "Hydrax",
+                                quality: stream.quality,
+                                headers: { Referer: stream.referer }
+                            }));
+                        }
+                        continue;
+                    }
                     const stream = await resolveStreamUrl(candidate.url);
                     if (!stream || seen.has(stream.url)) continue;
                     seen.add(stream.url);
