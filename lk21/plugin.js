@@ -107,6 +107,24 @@
         return items;
     }
 
+    function collectHomeCategories(html, pageUrl) {
+        const categories = {};
+        const wrappers = String(html || "").match(/<div\b[^>]*class=["'][^"']*\bslider-wrapper\b[^"']*["'][^>]*>/gi) || [];
+        for (const wrapper of wrappers) {
+            const label = textOf(attr(wrapper, "aria-label"));
+            if (!label) continue;
+            const start = String(html).indexOf(wrapper);
+            if (start < 0) continue;
+            const list = String(html).slice(start + wrapper.length).match(/<ul\b[^>]*>([\s\S]*?)<\/ul>/i);
+            if (!list) continue;
+            const items = collectArticles(list[1], pageUrl, 40);
+            if (!items.length) continue;
+            const name = /^film terbaru$/i.test(label) ? "Film & Series Terbaru" : label;
+            if (!categories[name]) categories[name] = items;
+        }
+        return categories;
+    }
+
     function firstMeta(html, property) {
         const tags = String(html || "").match(/<meta\b[^>]*>/gi) || [];
         const tag = tags.find(value => attr(value, "property").toLowerCase() === property.toLowerCase() || attr(value, "name").toLowerCase() === property.toLowerCase());
@@ -202,11 +220,11 @@
     async function getHome(cb) {
         try {
             const page = await requestPage(BASE() + "/");
-            const html = page.html;
-            const featuredMatch = html.match(/<ul\b[^>]*id=["']featured-slider["'][^>]*>([\s\S]*?)<\/ul>/i);
-            const trending = collectArticles(featuredMatch ? featuredMatch[1] : html, page.url, 20);
-            const latest = collectArticles(html, page.url, 40);
-            cb({ success: true, data: { "Trending": trending, "Film & Series Terbaru": latest } });
+            const categories = collectHomeCategories(page.html, page.url);
+            if (!Object.keys(categories).length) {
+                categories["Film & Series Terbaru"] = collectArticles(page.html, page.url, 40);
+            }
+            cb({ success: true, data: categories });
         } catch (e) {
             cb({ success: false, errorCode: "HOME_ERROR", message: String(e) });
         }
